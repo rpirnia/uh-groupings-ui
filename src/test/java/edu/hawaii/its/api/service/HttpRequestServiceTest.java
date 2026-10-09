@@ -106,6 +106,39 @@ public class HttpRequestServiceTest {
     }
 
     @Test
+    public void rejectsTraversalInAbsoluteAndRelativePaths() {
+        JwtService jwtService = mock(JwtService.class);
+        String base = apiBase + "/api/groupings/v2.1";
+        HttpRequestService service = new HttpRequestService(jwtService, base);
+        String[] paths = { "/../admin", "/members/../../admin", "/./members",
+                "/%2e%2e/admin", "/.%2E/admin", "/members%2f..%2f..%2fadmin",
+                "/%2e%2e%5cadmin" };
+
+        for (String path : paths) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.toRelativePath(path), path);
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.toRelativePath(base + path), path);
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.resolveApiUri(path), path);
+            assertThrows(IllegalArgumentException.class,
+                    () -> service.resolveApiUri(base + path), path);
+        }
+    }
+
+    @Test
+    public void preservesSafePathsAndQueryValues() {
+        JwtService jwtService = mock(JwtService.class);
+        String base = apiBase + "/api/groupings/v2.1";
+        HttpRequestService service = new HttpRequestService(jwtService, base + "/");
+
+        assertEquals(base + "/", service.resolveApiUri(base).toString());
+        assertEquals(base + "/members", service.resolveApiUri("/members").toString());
+        assertEquals(base + "/members..json?next=/../admin",
+                service.resolveApiUri("/members..json?next=/../admin").toString());
+    }
+
+    @Test
     public void constructorRequiresApiBase() {
         JwtService jwtService = mock(JwtService.class);
         assertThrows(IllegalArgumentException.class,
